@@ -124,6 +124,7 @@ const ChatPage = () => {
           urls: [{ url: fileS3Url, transcript: '' }],
         })
         const updatedChat: IChat = r.data
+        console.log('updatedChat:', updatedChat)
         const updatedChats: IChat[] = chats.map((chat) =>
           chat._id === activeChat?._id ? updatedChat : chat
         )
@@ -134,14 +135,14 @@ const ChatPage = () => {
         setFile(null)
         setFileS3Url('')
 
-        getStreaming()
+        getStreaming(updatedChat)
       } catch (error) {
         console.log(error)
       }
     }
   }
 
-  const getStreaming = async () => {
+  const getStreaming = async (activeChat: IChat) => {
     try {
       let completion = ''
 
@@ -151,7 +152,7 @@ const ChatPage = () => {
           Accept: 'application/json, text/plain, */*',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ chatId: activeChat?._id }),
+        body: JSON.stringify({ chatId: activeChat._id }),
       })
 
       if (!response.ok || !response.body) {
@@ -167,31 +168,18 @@ const ChatPage = () => {
         const decodedChunk = decoder.decode(value, { stream: true })
         completion += decodedChunk
 
-        if (activeChat && decodedChunk !== '') {
-          const deltaFound = activeChat.messages.find((m) => m._id === 'deltaMsgID')
-
-          if (deltaFound) {
-            setActiveChat({
-              ...activeChat,
-              messages: activeChat.messages.map((m) =>
-                m._id === 'deltaMsgID'
-                  ? { ...INIT_DELTA, content: INIT_DELTA.content + completion }
-                  : m
-              ),
-            })
-          } else {
-            const currentMessages = [...activeChat.messages]
-            currentMessages.push({ ...INIT_DELTA, content: completion })
-
-            setActiveChat({ ...activeChat, messages: currentMessages })
-          }
+        if (decodedChunk !== '') {
+          const currentMessages = [...activeChat.messages]
+          currentMessages.push({ ...INIT_DELTA, content: completion })
+          
+          setActiveChat({ ...activeChat, messages: currentMessages })
         }
 
         if (done) {
           setIsTyping(false)
 
           axiosIns
-            .get('/api/chats/' + activeChat?._id)
+            .get('/api/chats/' + activeChat._id)
             .then((r) => {
               const chatDB = r.data
 
